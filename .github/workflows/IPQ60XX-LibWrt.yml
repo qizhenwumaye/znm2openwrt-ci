@@ -16,13 +16,13 @@ jobs:
     permissions:
       contents: write
       actions: write
-    with:
-      repo_url: https://github.com/laipeng668/openwrt-6.x.git
-      repo_branch: 25.12-nss
+        with:
+      # 改为该作者的仓库地址
+      repo_url: https://github.com/AnClark/lede-zn-m2-wifi.git
+      # 改为该作者的专用分支
+      repo_branch: zn-m2-wifi
       config_file: configs/IPQ60XX.config
-      firmware_tag: IPQ60XX
+      firmware_tag: IPQ60XX-LEDE
       kernel_file: kernel-6.12
-      artifact_prefix: IPQ60XX
-      manifest_file: libwrt-qualcommax-ipq60xx.manifest
-      release_summary: >-
-        这是开启全功能NSS的6.12内核固件，默认主题为Aurora；该固件在ImmortalWrt的基础上，添加了额外的软件包cpufreq、ddns、upnp、wol、samba4、vlmcsd、autoreboot、uhttpd、frps、frpc、diskman、hd-idle、acme、wireguard、watchcat、3cat、passwall，并添加了若干工具，具体详见IPQ60XX.config和General.config。
+      artifact_prefix: IPQ60XX-LEDE
+      manifest_file: lede-qualcommax-ipq60xx.manifest
