@@ -1,0 +1,26 @@
+#!/bin/sh
+
+# 1. 如果首次开机时无线配置尚未生成，主动触发生成
+if [ ! -f /etc/config/wireless ]; then
+    wifi config
+fi
+
+# 2. 遍历所有无线接口，自动将 2.4G (band 为 2g) 的 radio 永久禁用
+for dev in $(uci show wireless 2>/dev/null | grep -E "band='2g'" | cut -d. -f2); do
+    uci set wireless.${dev}.disabled='1'
+done
+
+# 3. 硬件兜底：IPQ6000 架构上 radio0 必定是 2.4G，强制设为 1（禁用）杜绝加电短路
+if uci get wireless.radio0 >/dev/null 2>&1; then
+    uci set wireless.radio0.disabled='1'
+fi
+
+# 4. 确保 5G (radio1) 是启用状态，保留高速 WiFi 6
+if uci get wireless.radio1 >/dev/null 2>&1; then
+    uci set wireless.radio1.disabled='0'
+fi
+
+# 5. 提交保存无线配置
+uci commit wireless
+
+exit 0
