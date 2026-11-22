@@ -132,6 +132,12 @@ clone_repository() {
 mkdir -p "$(dirname "$THIRD_PARTY_SOURCES_FILE")"
 printf 'Repository\tBranch\tCommit\n' > "$THIRD_PARTY_SOURCES_FILE"
 
+# 同步自定义 files 目录到 OpenWrt 编译源码根目录
+if [ -d "$WORKSPACE/files" ]; then
+  echo "==> 正在将自定义 files 目录复制到 OpenWrt 根目录..."
+  cp -rf "$WORKSPACE/files" "$PWD/"
+fi
+
 # 修改默认IP & 固件名称 & 编译署名和时间
 sed -i 's/192.168.1.1/192.168.1.1/g' package/base-files/files/bin/config_generate
 sed -i "s/hostname='.*'/hostname='OpenWrt'/g" package/base-files/files/bin/config_generate
