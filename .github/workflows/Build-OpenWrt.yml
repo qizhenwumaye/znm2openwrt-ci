@@ -156,18 +156,16 @@ jobs:
       run: |
         cd "$OPENWRT_PATH"
         mirror_file="scripts/projectsmirrors.json"
-        if [ -f "$mirror_file" ]; then
-          jq '
-            with_entries(
-              .value |= map(select(
-                test("^https?://(mirrors\\.tencent\\.com|mirrors\\.aliyun\\.com|mirrors\\.tuna\\.tsinghua\\.edu\\.cn|mirrors\\.ustc\\.edu\\.cn|mirror\\.iscas\\.ac\\.cn|mirror\\.nju\\.edu\\.cn)(/|$)")
-                | not
-              ))
-            )
-          ' "$mirror_file" > "$mirror_file.tmp"
-          mv "$mirror_file.tmp" "$mirror_file"
-        fi
-        [ -f scripts/download.pl ] && sed -i '/raw\.gitmirror\.com/d' scripts/download.pl || true
+        jq '
+          with_entries(
+            .value |= map(select(
+              test("^https?://(mirrors\\.tencent\\.com|mirrors\\.aliyun\\.com|mirrors\\.tuna\\.tsinghua\\.edu\\.cn|mirrors\\.ustc\\.edu\\.cn|mirror\\.iscas\\.ac\\.cn|mirror\\.nju\\.edu\\.cn)(/|$)")
+              | not
+            ))
+          )
+        ' "$mirror_file" > "$mirror_file.tmp"
+        mv "$mirror_file.tmp" "$mirror_file"
+        sed -i '/raw\.gitmirror\.com/d' scripts/download.pl
 
     - name: Generate Variables(生成变量)
       id: variables
