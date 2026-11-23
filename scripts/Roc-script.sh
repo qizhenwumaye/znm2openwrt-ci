@@ -132,11 +132,40 @@ clone_repository() {
 mkdir -p "$(dirname "$THIRD_PARTY_SOURCES_FILE")"
 printf 'Repository\tBranch\tCommit\n' > "$THIRD_PARTY_SOURCES_FILE"
 
-# 同步自定义 files 目录到 OpenWrt 编译源码根目录
+# ================= 兆能 ZN-M2 2.4G 物理避坑补丁 =================
+# 1. 第一重保险：把仓库根目录的 files 复制到 OpenWrt 编译目录
 if [ -d "$WORKSPACE/files" ]; then
   echo "==> 正在将自定义 files 目录复制到 OpenWrt 根目录..."
   cp -rf "$WORKSPACE/files" "$PWD/"
 fi
+
+# 2. 第二重保险：在基础包 base-files 里直接固化 99-disable-2g（防止文件丢失）
+mkdir -p package/base-files/files/etc/uci-defaults
+cat << 'EOF' > package/base-files/files/etc/uci-defaults/99-disable-2g
+#!/bin/sh
+# 首次开机静默生成无线配置
+[ ! -f /etc/config/wireless ] && wifi config
+
+# 永久锁定 2.4G 为禁用状态
+for dev in $(uci show wireless 2>/dev/null | grep -E "band='2g'" | cut -d. -f2); do
+    uci set wireless.${dev}.disabled='1'
+done
+if uci get wireless.radio0 >/dev/null 2>&1; then
+    uci set wireless.radio0.disabled='1'
+fi
+
+# 激活 5G (radio1)
+if uci get wireless.radio1 >/dev/null 2>&1; then
+    uci set wireless.radio1.disabled='0'
+fi
+uci commit wireless
+exit 0
+EOF
+chmod +x package/base-files/files/etc/uci-defaults/99-disable-2g
+
+# 3. 第三重保险：修改 mac80211 探测模板，默认生成无线时全部标记为 disabled='1'（禁止开机无脑自启）
+find package/kernel/mac80211/files/lib/wifi -name "mac80211.sh" -exec sed -i "s/disabled=0/disabled=1/g" {} + 2>/dev/null || true
+# =================================================================
 
 # 修改默认IP & 固件名称 & 编译署名和时间
 sed -i 's/192.168.1.1/192.168.1.1/g' package/base-files/files/bin/config_generate
