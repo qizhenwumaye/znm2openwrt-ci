@@ -133,12 +133,8 @@ mkdir -p "$(dirname "$THIRD_PARTY_SOURCES_FILE")"
 printf 'Repository\tBranch\tCommit\n' > "$THIRD_PARTY_SOURCES_FILE"
 
 # ================= 兆能 ZN-M2 极简无线静默补丁 =================
-# 1. 植入商家的完整版 board-2.bin（必须有此文件后台才能识别到无线硬件）
-mkdir -p package/base-files/files/lib/firmware/ath11k/IPQ6018/hw1.0
-curl -sSL "https://raw.githubusercontent.com/w2xg2022/ax18usb/main/package/firmware/ath11k-wifi/board-2.bin.IPQ6018" \
-  -o package/base-files/files/lib/firmware/ath11k/IPQ6018/hw1.0/board-2.bin
 
-# 2. 全局锁定：修改 mac80211 模板，默认生成无线时全部标记为 disabled='1'（绝不开机自启）
+# 1. 全局锁定：修改 mac80211 模板，默认生成无线时全部标记为 disabled='1'（绝不开机自启）
 find package/kernel/mac80211/files/lib/wifi -name "mac80211.sh" -exec sed -i "s/disabled=0/disabled=1/g" {} + 2>/dev/null || true
 # ===============================================================
 
