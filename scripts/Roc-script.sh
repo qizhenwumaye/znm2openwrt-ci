@@ -132,37 +132,47 @@ clone_repository() {
 mkdir -p "$(dirname "$THIRD_PARTY_SOURCES_FILE")"
 printf 'Repository\tBranch\tCommit\n' > "$THIRD_PARTY_SOURCES_FILE"
 
-# ================= 兆能 ZN-M2 完美双频 WiFi + 供电稳定性修复补丁 =================
-# 1. 核心修复：修正 0:ART 射频校准分区大小写不匹配 Bug（让 2.4G/5G 正常加载 Caldata 物理校准数据）
-find target/linux/qualcommax -name "11-ath11k-caldata" -exec sed -i 's/"0:art"/"0:ART"/g' {} + 2>/dev/null || true
+# ================= 兆能 ZN-M2 完美双频 WiFi 终极修复补丁 =================
+# 1. 核心修复：植入商家的 787KB 完整版 board-2.bin（解决 board data -12 缺失 board_id 0xff 错误）
+mkdir -p package/base-files/files/lib/firmware/ath11k/IPQ6018/hw1.0
+curl -sSL "https://raw.githubusercontent.com/w2xg2022/ax18usb/main/package/firmware/ath11k-wifi/board-2.bin.IPQ6018" \
+  -o package/base-files/files/lib/firmware/ath11k/IPQ6018/hw1.0/board-2.bin
 
-# 2. 供电稳定：调高 IPQ60XX CPU 1.5GHz 时的核心电压（从激进欠压 0.9375V 提高到稳定的 0.9875V，杜绝并发射频瞬态掉电死机）
+# 2. 核心修复：兼容 0:art 与 0:ART 分区大小写（6.12 实测为小写 0:art）
+sed -i 's/grep "\\"\$1\\"" \/proc\/mtd/grep -i "\\"\$1\\"" \/proc\/mtd/g' package/base-files/files/lib/functions.sh 2>/dev/null || true
+find target/linux/qualcommax -name "11-ath11k-caldata" -exec sed -i 's/"0:ART"/"0:art"/g' {} + 2>/dev/null || true
+
+# 3. 供电稳定：保持 1.5GHz 时的核心电压为 0.9875V，杜绝掉电
 sed -i 's/opp-microvolt = <937500>;/opp-microvolt = <987500>;/' target/linux/qualcommax/patches-6.12/0038-v6.16-arm64-dts-qcom-ipq6018-add-1.5GHz-CPU-Frequency.patch 2>/dev/null || true
 
-# 3. 清理之前错误的禁用脚本（防止误关 5G）
+# 4. 清理旧的禁用脚本
 rm -f package/base-files/files/etc/uci-defaults/99-disable-2g 2>/dev/null || true
 [ -f "$WORKSPACE/files/etc/uci-defaults/99-disable-2g" ] && rm -f "$WORKSPACE/files/etc/uci-defaults/99-disable-2g"
 
-# 4. 首次开机配置：5G 与 2.4G 双频全开，并分别赋予默认 SSID
+# 5. 首次开机配置：自动提取校准文件 + 激活 5G 和 2.4G
 mkdir -p package/base-files/files/etc/uci-defaults
 cat << 'EOF' > package/base-files/files/etc/uci-defaults/99-wireless-setup
 #!/bin/sh
-# 首次开机静默生成无线配置
-[ ! -f /etc/config/wireless ] && wifi config
+# 兜底保障：如果校准文件未生成，直接从 0:art 分区提取 64KB
+if [ ! -s /lib/firmware/ath11k/IPQ6018/hw1.0/cal-ahb-c000000.wifi.bin ]; then
+    art_dev=$(grep -i '"0:art"' /proc/mtd | awk -F: '{print $1}')
+    if [ -n "$art_dev" ]; then
+        mkdir -p /lib/firmware/ath11k/IPQ6018/hw1.0
+        dd if="/dev/${art_dev}" of=/lib/firmware/ath11k/IPQ6018/hw1.0/cal-ahb-c000000.wifi.bin bs=65536 skip=4096 iflag=skip_bytes count=1 2>/dev/null
+    fi
+fi
 
-# 开启 5G (radio0) 与 2.4G (radio1)
+# 生成无线配置并开启
+[ ! -f /etc/config/wireless ] && wifi config
 uci set wireless.radio0.disabled='0' 2>/dev/null
 uci set wireless.radio1.disabled='0' 2>/dev/null
-
-# 默认 SSID 区分
 uci set wireless.default_radio0.ssid='OpenWrt-5G' 2>/dev/null
 uci set wireless.default_radio1.ssid='OpenWrt-2.4G' 2>/dev/null
-
 uci commit wireless
 exit 0
 EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-wireless-setup
-# =================================================================================
+# =========================================================================
 
 # 修改默认IP & 固件名称 & 编译署名和时间
 sed -i 's/192.168.1.1/192.168.1.1/g' package/base-files/files/bin/config_generate
