@@ -132,40 +132,37 @@ clone_repository() {
 mkdir -p "$(dirname "$THIRD_PARTY_SOURCES_FILE")"
 printf 'Repository\tBranch\tCommit\n' > "$THIRD_PARTY_SOURCES_FILE"
 
-# ================= 兆能 ZN-M2 2.4G 物理避坑补丁 =================
-# 1. 第一重保险：把仓库根目录的 files 复制到 OpenWrt 编译目录
-if [ -d "$WORKSPACE/files" ]; then
-  echo "==> 正在将自定义 files 目录复制到 OpenWrt 根目录..."
-  cp -rf "$WORKSPACE/files" "$PWD/"
-fi
+# ================= 兆能 ZN-M2 完美双频 WiFi + 供电稳定性修复补丁 =================
+# 1. 核心修复：修正 0:ART 射频校准分区大小写不匹配 Bug（让 2.4G/5G 正常加载 Caldata 物理校准数据）
+find target/linux/qualcommax -name "11-ath11k-caldata" -exec sed -i 's/"0:art"/"0:ART"/g' {} + 2>/dev/null || true
 
-# 2. 第二重保险：在基础包 base-files 里直接固化 99-disable-2g（防止文件丢失）
+# 2. 供电稳定：调高 IPQ60XX CPU 1.5GHz 时的核心电压（从激进欠压 0.9375V 提高到稳定的 0.9875V，杜绝并发射频瞬态掉电死机）
+sed -i 's/opp-microvolt = <937500>;/opp-microvolt = <987500>;/' target/linux/qualcommax/patches-6.12/0038-v6.16-arm64-dts-qcom-ipq6018-add-1.5GHz-CPU-Frequency.patch 2>/dev/null || true
+
+# 3. 清理之前错误的禁用脚本（防止误关 5G）
+rm -f package/base-files/files/etc/uci-defaults/99-disable-2g 2>/dev/null || true
+[ -f "$WORKSPACE/files/etc/uci-defaults/99-disable-2g" ] && rm -f "$WORKSPACE/files/etc/uci-defaults/99-disable-2g"
+
+# 4. 首次开机配置：5G 与 2.4G 双频全开，并分别赋予默认 SSID
 mkdir -p package/base-files/files/etc/uci-defaults
-cat << 'EOF' > package/base-files/files/etc/uci-defaults/99-disable-2g
+cat << 'EOF' > package/base-files/files/etc/uci-defaults/99-wireless-setup
 #!/bin/sh
 # 首次开机静默生成无线配置
 [ ! -f /etc/config/wireless ] && wifi config
 
-# 永久锁定 2.4G 为禁用状态
-for dev in $(uci show wireless 2>/dev/null | grep -E "band='2g'" | cut -d. -f2); do
-    uci set wireless.${dev}.disabled='1'
-done
-if uci get wireless.radio0 >/dev/null 2>&1; then
-    uci set wireless.radio0.disabled='1'
-fi
+# 开启 5G (radio0) 与 2.4G (radio1)
+uci set wireless.radio0.disabled='0' 2>/dev/null
+uci set wireless.radio1.disabled='0' 2>/dev/null
 
-# 激活 5G (radio1)
-if uci get wireless.radio1 >/dev/null 2>&1; then
-    uci set wireless.radio1.disabled='0'
-fi
+# 默认 SSID 区分
+uci set wireless.default_radio0.ssid='OpenWrt-5G' 2>/dev/null
+uci set wireless.default_radio1.ssid='OpenWrt-2.4G' 2>/dev/null
+
 uci commit wireless
 exit 0
 EOF
-chmod +x package/base-files/files/etc/uci-defaults/99-disable-2g
-
-# 3. 第三重保险：修改 mac80211 探测模板，默认生成无线时全部标记为 disabled='1'（禁止开机无脑自启）
-find package/kernel/mac80211/files/lib/wifi -name "mac80211.sh" -exec sed -i "s/disabled=0/disabled=1/g" {} + 2>/dev/null || true
-# =================================================================
+chmod +x package/base-files/files/etc/uci-defaults/99-wireless-setup
+# =================================================================================
 
 # 修改默认IP & 固件名称 & 编译署名和时间
 sed -i 's/192.168.1.1/192.168.1.1/g' package/base-files/files/bin/config_generate
