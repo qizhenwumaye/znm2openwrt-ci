@@ -167,19 +167,6 @@ chmod +x package/base-files/files/etc/uci-defaults/99-disable-2g
 find package/kernel/mac80211/files/lib/wifi -name "mac80211.sh" -exec sed -i "s/disabled=0/disabled=1/g" {} + 2>/dev/null || true
 # =================================================================
 
-# ================= 激活 4MB Q6 Carveout 补丁 (sdf8057 验证版) =================
-DTS_DIR="target/linux/qualcommax/files/arch/arm64/boot/dts/qcom"
-if [ -d "$DTS_DIR" ]; then
-  echo "==> 正在将 Q6 预留内存从 55MB 调整为 4MB..."
-  # q6_region: 55MB -> 4MB
-  sed -i 's/reg = <0x0 0x4ab00000 0x0 0x3700000>/reg = <0x0 0x4ab00000 0x0 0x400000>/g' "$DTS_DIR"/*.dtsi
-  # q6_etr_dump: 0x4e200000 -> 0x4af00000
-  sed -i 's/0x0 0x4e200000 0x0 0x100000/0x0 0x4af00000 0x0 0x100000/g' "$DTS_DIR"/*.dtsi
-  # m3_dump: 0x4e300000 -> 0x4b000000
-  sed -i 's/0x0 0x4e300000 0x0 0x100000/0x0 0x4b000000 0x0 0x100000/g' "$DTS_DIR"/*.dtsi
-fi
-# ==============================================================================
-
 # 修改默认IP & 固件名称 & 编译署名和时间
 sed -i 's/192.168.1.1/192.168.1.1/g' package/base-files/files/bin/config_generate
 sed -i "s/hostname='.*'/hostname='OpenWrt'/g" package/base-files/files/bin/config_generate
