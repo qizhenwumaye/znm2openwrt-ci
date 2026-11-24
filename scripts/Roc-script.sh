@@ -132,8 +132,8 @@ clone_repository() {
 mkdir -p "$(dirname "$THIRD_PARTY_SOURCES_FILE")"
 printf 'Repository\tBranch\tCommit\n' > "$THIRD_PARTY_SOURCES_FILE"
 
-# ================= 兆能 ZN-M2 完美双频 WiFi 终极修复补丁 =================
-# 1. 核心修复：植入商家的 787KB 完整版 board-2.bin（解决 board data -12 缺失 board_id 0xff 错误）
+# ================= 兆能 ZN-M2 无线安全静默补丁（默认全关，后台手动开启） =================
+# 1. 核心修复：植入商家的 787KB 完整版 board-2.bin（确保芯片能被驱动识别，后台才会有无线菜单）
 mkdir -p package/base-files/files/lib/firmware/ath11k/IPQ6018/hw1.0
 curl -sSL "https://raw.githubusercontent.com/w2xg2022/ax18usb/main/package/firmware/ath11k-wifi/board-2.bin.IPQ6018" \
   -o package/base-files/files/lib/firmware/ath11k/IPQ6018/hw1.0/board-2.bin
@@ -142,14 +142,14 @@ curl -sSL "https://raw.githubusercontent.com/w2xg2022/ax18usb/main/package/firmw
 sed -i 's/grep "\\"\$1\\"" \/proc\/mtd/grep -i "\\"\$1\\"" \/proc\/mtd/g' package/base-files/files/lib/functions.sh 2>/dev/null || true
 find target/linux/qualcommax -name "11-ath11k-caldata" -exec sed -i 's/"0:ART"/"0:art"/g' {} + 2>/dev/null || true
 
-# 3. 供电稳定：保持 1.5GHz 时的核心电压为 0.9875V，杜绝掉电
-sed -i 's/opp-microvolt = <937500>;/opp-microvolt = <987500>;/' target/linux/qualcommax/patches-6.12/0038-v6.16-arm64-dts-qcom-ipq6018-add-1.5GHz-CPU-Frequency.patch 2>/dev/null || true
+# 3. 全局锁定：修改 mac80211 模板，默认生成无线时强制全部标记为 disabled='1'（禁止开机无脑自启）
+find package/kernel/mac80211/files/lib/wifi -name "mac80211.sh" -exec sed -i "s/disabled=0/disabled=1/g" {} + 2>/dev/null || true
 
-# 4. 清理旧的禁用脚本
+# 4. 清理旧脚本
 rm -f package/base-files/files/etc/uci-defaults/99-disable-2g 2>/dev/null || true
 [ -f "$WORKSPACE/files/etc/uci-defaults/99-disable-2g" ] && rm -f "$WORKSPACE/files/etc/uci-defaults/99-disable-2g"
 
-# 5. 首次开机配置：自动提取校准文件 + 激活 5G 和 2.4G
+# 5. 首次开机配置：提取校准文件 + 强制将所有无线设为禁用状态（开机绝不加电）
 mkdir -p package/base-files/files/etc/uci-defaults
 cat << 'EOF' > package/base-files/files/etc/uci-defaults/99-wireless-setup
 #!/bin/sh
@@ -162,17 +162,25 @@ if [ ! -s /lib/firmware/ath11k/IPQ6018/hw1.0/cal-ahb-c000000.wifi.bin ]; then
     fi
 fi
 
-# 生成无线配置并开启
+# 生成无线配置
 [ ! -f /etc/config/wireless ] && wifi config
-uci set wireless.radio0.disabled='0' 2>/dev/null
-uci set wireless.radio1.disabled='0' 2>/dev/null
+
+# 强制锁定所有无线为禁用状态（disabled='1'），开机绝不加电发射
+for dev in $(uci show wireless 2>/dev/null | grep -E "\.type='mac80211'" | cut -d. -f2); do
+    uci set wireless.${dev}.disabled='1'
+done
+uci set wireless.radio0.disabled='1' 2>/dev/null
+uci set wireless.radio1.disabled='1' 2>/dev/null
+
+# 预设好 SSID
 uci set wireless.default_radio0.ssid='OpenWrt-5G' 2>/dev/null
 uci set wireless.default_radio1.ssid='OpenWrt-2.4G' 2>/dev/null
+
 uci commit wireless
 exit 0
 EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-wireless-setup
-# =========================================================================
+# =========================================================================================
 
 # 修改默认IP & 固件名称 & 编译署名和时间
 sed -i 's/192.168.1.1/192.168.1.1/g' package/base-files/files/bin/config_generate
